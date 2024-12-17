@@ -1,13 +1,22 @@
 const socket = io();
 
+socket.on('connect', () => {
+    console.log('Connected to server');
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Connection Error:', error);
+});
+
 if (navigator.geolocation) {
     navigator.geolocation.watchPosition(
         (position) => {
             const { latitude, longitude } = position.coords;
-            socket.emit("send-location", { latitude, longitude });
+            socket.emit('send-location', { latitude, longitude });
+            console.log('Location sent');
         },
         (error) => {
-            console.error(error);
+            console.error('Geolocation Error:', error);
         },
         {
             enableHighAccuracy: true,
@@ -15,23 +24,28 @@ if (navigator.geolocation) {
             maximumAge: 0,
         }
     );
+} else {
+    console.error('Geolocation is not supported by this browser.');
 }
 
-/**
- * setView([latitude, longitude], zoomLevel)
- */
+const map = L.map('map').setView([0, 0], 20);
 
-const map = L.map("map").setView([0, 0], 16);
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "OpenStreetMap",
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: 'LiveTracker',
 }).addTo(map);
 
-const markers = {};
 
-socket.on("receive-location", (data) => {
+const markers = {};
+let lastUpdate = 0;
+
+socket.on('receive-location', (data) => {
     const { id, latitude, longitude } = data;
-    map.setView([latitude, longitude]);
+
+    if (Date.now() - lastUpdate > 1000) {
+        map.setView([latitude, longitude], 20);
+        lastUpdate = Date.now();
+    }
+
     if (markers[id]) {
         markers[id].setLatLng([latitude, longitude]);
     } else {
@@ -39,7 +53,7 @@ socket.on("receive-location", (data) => {
     }
 });
 
-socket.on("user-disconnected", (id) => {
+socket.on('user-disconnected', (id) => { 
     if (markers[id]) {
         map.removeLayer(markers[id]);
         delete markers[id];
